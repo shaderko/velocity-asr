@@ -36,6 +36,8 @@ from .ssm import (
     SSMBlock,
     LocalSSMProcessor,
     GlobalSSM,
+    ScanMode,
+    MAMBA_AVAILABLE,
 )
 
 from .attention import (
@@ -65,6 +67,14 @@ from .decode import (
     CTCDecoder,
     DecodingResult,
     create_default_vocabulary,
+)
+
+from .data import (
+    ASRDataset,
+    ASRCollator,
+    LibriSpeechDataset,
+    create_dataloader,
+    create_librispeech_dataloaders,
 )
 
 # Convenience function for loading pretrained models
@@ -99,6 +109,8 @@ __all__ = [
     "SSMBlock",
     "LocalSSMProcessor",
     "GlobalSSM",
+    "ScanMode",
+    "MAMBA_AVAILABLE",
     "HierarchicalGlobalContext",
     "AdaptivePool",
     "MultiHeadAttention",
@@ -123,4 +135,11 @@ __all__ = [
     "CTCDecoder",
     "DecodingResult",
     "create_default_vocabulary",
+
+    # Data loading
+    "ASRDataset",
+    "ASRCollator",
+    "LibriSpeechDataset",
+    "create_dataloader",
+    "create_librispeech_dataloaders",
 ]

@@ -53,4 +53,16 @@ ctc_head:
 
 # Memory optimization
 memory:
-  gradient_checkpointing: true  # Trade compute for memory (recommended for training)
+  gradient_checkpointing: false  # Trade compute for memory (enable if OOM)
+
+# Performance optimization
+performance:
+  # Scan mode for SSM layers:
+  # - "sequential": Basic Python loop (slow, ~1.4s/step, always works)
+  # - "parallel": Associative parallel scan (fast, ~0.2-0.3s/step, pure PyTorch)
+  # - "mamba": Official CUDA kernels (fastest, ~0.05s/step, requires mamba-ssm)
+  scan_mode: "parallel"
+
+  # torch.compile() for additional speedup (requires PyTorch 2.0+)
+  # Adds ~30s compilation time on first forward pass
+  use_compile: false

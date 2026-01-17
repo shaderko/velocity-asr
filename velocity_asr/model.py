@@ -14,8 +14,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional, Dict, Any, Tuple
 from dataclasses import dataclass
+from typing import Literal
 
-from .ssm import LocalSSMProcessor
+from .ssm import LocalSSMProcessor, ScanMode
 from .attention import HierarchicalGlobalContext
 
 
@@ -51,6 +52,15 @@ class VelocityASRConfig:
 
     # Memory optimization
     gradient_checkpointing: bool = False
+
+    # Performance optimization
+    # "sequential" - slow but always works
+    # "parallel" - fast pure PyTorch (default)
+    # "mamba" - fastest, requires mamba-ssm package
+    scan_mode: ScanMode = "parallel"
+
+    # torch.compile() for additional speedup (requires PyTorch 2.0+)
+    use_compile: bool = False
 
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> "VelocityASRConfig":
@@ -265,6 +275,7 @@ class VELOCITYASR(nn.Module):
             kernel_size=config.ssm_kernel_size,
             dropout=config.dropout,
             use_checkpoint=config.gradient_checkpointing,
+            scan_mode=config.scan_mode,
         )
 
         # Hierarchical global context
@@ -287,6 +298,10 @@ class VELOCITYASR(nn.Module):
         # Initialize weights
         self._init_weights()
 
+        # Apply torch.compile if requested
+        if config.use_compile:
+            self._apply_compile()
+
     def _init_weights(self):
         """Initialize model weights."""
         for module in self.modules():
@@ -301,6 +316,19 @@ class VELOCITYASR(nn.Module):
             elif isinstance(module, nn.LayerNorm):
                 nn.init.ones_(module.weight)
                 nn.init.zeros_(module.bias)
+
+    def _apply_compile(self):
+        """Apply torch.compile() to performance-critical components."""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Compile the main forward components
+            self.local_ssm = torch.compile(self.local_ssm, mode="reduce-overhead")
+            self.global_context = torch.compile(self.global_context, mode="reduce-overhead")
+            logger.info("Applied torch.compile() to SSM and attention modules")
+        except Exception as e:
+            logger.warning(f"torch.compile() failed: {e}. Continuing without compilation.")
 
     def forward(
         self,
@@ -430,6 +458,8 @@ class VELOCITYASR(nn.Module):
                 'vocab_size': self.config.vocab_size,
                 'dropout': self.config.dropout,
                 'gradient_checkpointing': self.config.gradient_checkpointing,
+                'scan_mode': self.config.scan_mode,
+                'use_compile': self.config.use_compile,
             },
             'model_state_dict': self.state_dict(),
         }

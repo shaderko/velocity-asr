@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from velocity_asr import VELOCITYASR, VelocityASRConfig
 from velocity_asr.training import Trainer, TrainingConfig
 from velocity_asr.quantize import prepare_model_for_qat, QuantizationConfig
+from velocity_asr.data import create_librispeech_dataloaders, create_dataloader
 
 logging.basicConfig(
     level=logging.INFO,
@@ -168,7 +169,11 @@ def main():
         vocab_size=model_config.get('model', {}).get('vocab_size', 1000),
         dropout=model_config.get('model', {}).get('dropout', 0.1),
         gradient_checkpointing=model_config.get('memory', {}).get('gradient_checkpointing', False),
+        scan_mode=model_config.get('performance', {}).get('scan_mode', 'parallel'),
+        use_compile=model_config.get('performance', {}).get('use_compile', False),
     )
+
+    logger.info(f"Using scan_mode: {model_cfg.scan_mode}")
 
     # Create model
     model = VELOCITYASR(model_cfg)
@@ -204,10 +209,83 @@ def main():
     )
 
     # Create data loaders
-    # TODO: Replace with actual data loading
-    logger.warning("Using dummy data loader - replace with actual data for training")
-    train_dataloader = create_dummy_dataloader(training_cfg.batch_size)
-    eval_dataloader = create_dummy_dataloader(training_cfg.batch_size, num_batches=10)
+    data_config = train_config.get('data', {})
+    train_manifest = data_config.get('train_manifest')
+    val_manifest = data_config.get('val_manifest')
+
+    if train_manifest and os.path.exists(train_manifest):
+        # Use manifest files
+        logger.info(f"Loading training data from: {train_manifest}")
+        train_dataloader, train_dataset = create_dataloader(
+            manifest_path=train_manifest,
+            batch_size=training_cfg.batch_size,
+            shuffle=True,
+            num_workers=train_config.get('hardware', {}).get('num_workers', 4),
+            max_duration=data_config.get('max_audio_duration', 30.0),
+            min_duration=data_config.get('min_audio_duration', 0.5),
+        )
+        logger.info(f"Training samples: {len(train_dataset)}")
+
+        if val_manifest and os.path.exists(val_manifest):
+            logger.info(f"Loading validation data from: {val_manifest}")
+            eval_dataloader, val_dataset = create_dataloader(
+                manifest_path=val_manifest,
+                batch_size=training_cfg.batch_size,
+                shuffle=False,
+                num_workers=train_config.get('hardware', {}).get('num_workers', 4),
+                max_duration=data_config.get('max_audio_duration', 30.0),
+            )
+            logger.info(f"Validation samples: {len(val_dataset)}")
+        else:
+            eval_dataloader = None
+
+        # Update vocab size based on dataset
+        if hasattr(train_dataset, 'vocab'):
+            actual_vocab_size = len(train_dataset.vocab)
+            if actual_vocab_size != model_cfg.vocab_size:
+                logger.warning(
+                    f"Updating vocab_size from {model_cfg.vocab_size} to {actual_vocab_size}"
+                )
+                model_cfg.vocab_size = actual_vocab_size
+                # Need to recreate model with new vocab size
+                model = VELOCITYASR(model_cfg)
+                logger.info(f"Model recreated with {model.count_parameters():,} parameters")
+
+    elif data_config.get('librispeech_root'):
+        # Use LibriSpeech directly
+        librispeech_root = data_config.get('librispeech_root', './data')
+        train_splits = data_config.get('train_splits', ['train-clean-100'])
+        val_splits = data_config.get('val_splits', ['dev-clean'])
+
+        logger.info(f"Loading LibriSpeech from: {librispeech_root}")
+        logger.info(f"Train splits: {train_splits}")
+        logger.info(f"Val splits: {val_splits}")
+
+        train_dataloader, eval_dataloader, vocab = create_librispeech_dataloaders(
+            root=librispeech_root,
+            train_splits=train_splits,
+            val_splits=val_splits,
+            batch_size=training_cfg.batch_size,
+            num_workers=train_config.get('hardware', {}).get('num_workers', 4),
+            max_duration=data_config.get('max_audio_duration', 30.0),
+            download=False,
+        )
+
+        # Update vocab size
+        actual_vocab_size = len(vocab)
+        if actual_vocab_size != model_cfg.vocab_size:
+            logger.warning(
+                f"Updating vocab_size from {model_cfg.vocab_size} to {actual_vocab_size}"
+            )
+            model_cfg.vocab_size = actual_vocab_size
+            model = VELOCITYASR(model_cfg)
+            logger.info(f"Model recreated with {model.count_parameters():,} parameters")
+
+    else:
+        # Fallback to dummy data
+        logger.warning("No data config found - using dummy data loader for testing")
+        train_dataloader = create_dummy_dataloader(training_cfg.batch_size)
+        eval_dataloader = create_dummy_dataloader(training_cfg.batch_size, num_batches=10)
 
     # Create trainer
     trainer = Trainer(

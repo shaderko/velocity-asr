@@ -4,9 +4,20 @@
 
 # Dataset configuration
 data:
-  train_manifest: null          # Path to training manifest (JSON lines)
-  val_manifest: null            # Path to validation manifest
-  test_manifest: null           # Path to test manifest
+  # Option 1: Use manifest files (created by download_librispeech.py --create-manifests)
+  train_manifest: null          # e.g., ./manifests/train-all.jsonl
+  val_manifest: null            # e.g., ./manifests/dev-all.jsonl
+  test_manifest: null           # e.g., ./manifests/test-clean.jsonl
+
+  # Option 2: Use LibriSpeech directly via torchaudio
+  librispeech_root: null        # e.g., ./data (set to enable direct loading)
+  train_splits:                 # Which splits to use for training
+    - "train-clean-100"
+    # - "train-clean-360"
+    # - "train-other-500"
+  val_splits:                   # Which splits to use for validation
+    - "dev-clean"
+    # - "dev-other"
 
   # Audio preprocessing
   max_audio_duration: 30.0      # Maximum audio duration in seconds
