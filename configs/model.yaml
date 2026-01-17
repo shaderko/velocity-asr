@@ -1,0 +1,56 @@
+# VELOCITY-ASR v2 Model Configuration
+# =====================================
+# This file defines the model architecture hyperparameters.
+
+# Input configuration
+input:
+  mel_bins: 80          # Number of mel frequency bins
+  sample_rate: 16000    # Audio sample rate
+  n_fft: 400            # FFT window size (25ms at 16kHz)
+  hop_length: 160       # Hop length (10ms at 16kHz)
+
+# Model dimensions
+model:
+  d_model: 192          # Feature dimension throughout the model
+  # NOTE: vocab_size greatly impacts parameter count and memory
+  # 50k vocab -> ~9.6M params in CTC head alone!
+  # Use 1000 for character-level, 5000 for small subword vocab
+  vocab_size: 1000      # Vocabulary size (including blank token)
+  dropout: 0.1          # Dropout probability
+
+# Temporal Binding Layer
+temporal_binding:
+  kernel_size: 3        # Convolution kernel size
+  stride: 2             # Convolution stride (halves sequence length)
+  activation: "gelu"    # Activation function
+
+# Local SSM Processor
+ssm:
+  num_layers: 8         # Number of SSM blocks
+  state_dim: 64         # SSM state dimension
+  expand_ratio: 2       # FFN expansion ratio (d_model * expand_ratio = 384)
+  kernel_size: 4        # Depthwise convolution kernel size
+
+# Hierarchical Global Context
+global_context:
+  # Global SSM for processing pooled features
+  ssm_layers: 2         # Number of SSM layers for global processing
+  ssm_state_dim: 32     # State dimension for global SSM
+
+  # Multi-head attention
+  attention_heads: 4    # Number of attention heads
+  attention_dim: 48     # Total attention dimension (12 per head)
+
+  # Adaptive pooling
+  level1_min_pool: 64   # Minimum pool size for level 1
+  level1_divisor: 8     # L / divisor for level 1
+  level2_min_pool: 16   # Minimum pool size for level 2
+  level2_max_pool: 64   # Maximum pool size for level 2
+
+# CTC Output Head
+ctc_head:
+  intermediate_dim: null  # Optional intermediate projection (null = direct)
+
+# Memory optimization
+memory:
+  gradient_checkpointing: true  # Trade compute for memory (recommended for training)

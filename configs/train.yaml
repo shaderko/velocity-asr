@@ -1,0 +1,86 @@
+# VELOCITY-ASR v2 Training Configuration
+# ========================================
+# This file defines training hyperparameters.
+
+# Dataset configuration
+data:
+  train_manifest: null          # Path to training manifest (JSON lines)
+  val_manifest: null            # Path to validation manifest
+  test_manifest: null           # Path to test manifest
+
+  # Audio preprocessing
+  max_audio_duration: 30.0      # Maximum audio duration in seconds
+  min_audio_duration: 0.5       # Minimum audio duration in seconds
+
+  # Data augmentation
+  augmentation:
+    spec_augment: true          # Apply SpecAugment
+    time_mask_param: 100        # Max time mask width
+    time_mask_num: 2            # Number of time masks
+    freq_mask_param: 27         # Max frequency mask width
+    freq_mask_num: 2            # Number of frequency masks
+    noise_injection: false      # Add background noise
+    speed_perturb: false        # Speed perturbation
+
+# Optimization
+optimization:
+  # Learning rate
+  learning_rate: 1.0e-4         # Peak learning rate
+  min_lr_ratio: 0.1             # Minimum LR as ratio of peak
+
+  # Weight decay
+  weight_decay: 0.01            # AdamW weight decay
+
+  # Gradient clipping
+  grad_clip_norm: 1.0           # Maximum gradient norm
+
+  # Learning rate schedule
+  warmup_steps: 10000           # Linear warmup steps
+  total_steps: 80000            # Total training steps
+
+  # Batch settings
+  # NOTE: Reduce batch_size if OOM; use gradient_accumulation to maintain effective batch
+  batch_size: 8                 # Batch size per device (reduce if OOM)
+  gradient_accumulation_steps: 4  # Effective batch = batch_size * accumulation = 32
+
+# Mixed precision training
+precision:
+  use_amp: true                 # Use automatic mixed precision
+  amp_dtype: "float16"          # AMP data type (float16 or bfloat16)
+
+# Quantization-Aware Training
+quantization:
+  enabled: false                # Enable QAT
+  start_step: 40000             # Start QAT at this step
+  weight_bits: 8                # Weight quantization bits
+  activation_bits: 8            # Activation quantization bits
+  per_channel_weights: true     # Per-channel weight quantization
+  ssm_state_fp32: true          # Keep SSM state in FP32
+
+# Checkpointing
+checkpoint:
+  dir: "./checkpoints"          # Checkpoint directory
+  save_interval: 5000           # Save every N steps
+  keep_last: 5                  # Keep last N checkpoints
+  save_best: true               # Save best model by validation loss
+
+# Logging
+logging:
+  log_interval: 100             # Log every N steps
+  eval_interval: 1000           # Evaluate every N steps
+  wandb:
+    enabled: false              # Enable Weights & Biases logging
+    project: "velocity-asr"     # W&B project name
+    entity: null                # W&B entity (username or team)
+
+# Distributed training
+distributed:
+  enabled: false                # Enable distributed training
+  backend: "nccl"               # Distributed backend
+  world_size: 1                 # Number of processes
+
+# Hardware
+hardware:
+  num_workers: 4                # DataLoader workers
+  pin_memory: true              # Pin memory for GPU transfer
+  device: "cuda"                # Device (cuda, cpu, mps)
